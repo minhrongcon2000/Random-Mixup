@@ -14,3 +14,4 @@ torchmetrics>=0.10.0
 easydict
 vit-pytorch~=0.26.7
 timm
+transformers==4.19.2
