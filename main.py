@@ -162,7 +162,6 @@ def main():
             "MultiInputPolicy",
             env,
             **PPO_config,
-            learning_rate=exp_schedule(args.agent_lr),
             tensorboard_log="tsb_log/tsb" + str(args.seed),
         )
         agent.set_logger(logger=logger)
