@@ -224,9 +224,9 @@ class VanillaMixupPatchDiscrete(gym.Env):
                 torch.sum(-targets * nn.LogSoftmax(-1)(outputs), dim=1)
             )
         else:
-            mixed_inputs = inputs.clone()
+            mixed_inputs = Variable(inputs, requires_grad=True)
             criterion = torch.nn.CrossEntropyLoss().cuda()
-            outputs = self.model(inputs)
+            outputs = self.model(mixed_inputs)
             loss = criterion(outputs, targets)
 
         self.vis_flag = False
