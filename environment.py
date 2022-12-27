@@ -224,7 +224,7 @@ class VanillaMixupPatchDiscrete(gym.Env):
                 torch.sum(-targets * nn.LogSoftmax(-1)(outputs), dim=1)
             )
         else:
-            raise Exception("Invalid method")
+            pass
 
         self.vis_flag = False
         self.train_losses.update(loss.item(), inputs.size(0))
