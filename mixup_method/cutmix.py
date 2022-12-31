@@ -4,8 +4,9 @@ from torch.autograd import Variable
 
 
 class CutMix:
-    def __init__(self, model, *args, **kwargs) -> None:
+    def __init__(self, alpha, model, *args, **kwargs) -> None:
         self.model = model
+        self.alpha = alpha
     
     def __call__(self, inputs, targets, *args, **kwargs):
         criterion = torch.nn.CrossEntropyLoss().cuda()
@@ -13,7 +14,7 @@ class CutMix:
         lam = 1
         if prob < 0.5:
             # generate mixed sample
-            lam = np.random.beta(self.args.dirichlet_alpha, self.args.dirichlet_alpha)
+            lam = np.random.beta(self.alpha, self.alpha)
             rand_index = torch.randperm(inputs.size()[0]).cuda()
             target_a = targets
             target_b = targets[rand_index]
