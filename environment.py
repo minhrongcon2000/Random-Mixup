@@ -14,8 +14,8 @@ from gym import spaces
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 
-from mixup_method.utils import AverageMeter, convert_secs2time
 from mixup_method.mixup_factory import MixupFactory
+from mixup_method.utils import AverageMeter, convert_secs2time
 
 
 class VanillaMixupPatchDiscrete(gym.Env):

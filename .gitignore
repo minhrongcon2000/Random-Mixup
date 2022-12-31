@@ -4,7 +4,6 @@ bin
 pyvenv.cfg
 share
 target
-__init__.py
 .vscode
 include
 env
