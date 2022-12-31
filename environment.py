@@ -1,20 +1,21 @@
+import time
+from collections import Counter
+from typing import Union
+
+import gym
+import numpy as np
 import torch
-import torchmetrics
-from torch.utils.data import DataLoader
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-import gym
-from gym import spaces
-from typing import Union
-from torch.autograd import Variable
-from mixup import mix_topleast_choose_top, mixup_data, mixup_criterion, cut_top_and_paste, cut_topleast_and_paste, \
-    mix_topleast_choose_least
-from utils import accuracy, AverageMeter, convert_secs2time
-from collections import Counter
+import torchmetrics
 import wandb
 from accelerate import Accelerator
-import time
+from gym import spaces
+from torch.autograd import Variable
+from torch.utils.data import DataLoader
+
+from mixup_method.utils import AverageMeter, convert_secs2time
+from mixup_method.mixup_factory import MixupFactory
 
 
 class VanillaMixupPatchDiscrete(gym.Env):
@@ -27,8 +28,8 @@ class VanillaMixupPatchDiscrete(gym.Env):
         model: torch.nn.Module,
         optimizer: torch.optim.Optimizer,
         scheduler: Union[torch.optim.Optimizer, None],
-        train_dataloader: torch.utils.data.DataLoader,
-        test_dataloader: torch.utils.data.DataLoader,
+        train_dataloader: DataLoader,
+        test_dataloader: DataLoader,
         accelerator: Accelerator,
     ):
         """
@@ -86,7 +87,10 @@ class VanillaMixupPatchDiscrete(gym.Env):
         self.reward_avgmeter = AverageMeter()
         self.epoch_time = AverageMeter()
         self.batch_time = AverageMeter()
-
+        self.factory = MixupFactory()
+        
+        
+        
     def grad_sim(self, tensorA: torch.Tensor, tensorB: torch.Tensor):
         reward = (
             F.cosine_similarity(
@@ -137,97 +141,20 @@ class VanillaMixupPatchDiscrete(gym.Env):
             self.action_list.append(act)
             self.action_counter[act] += 1
             actions.append(self.action_space_mapper[act])
-        top_k_patch = torch.as_tensor(actions, device="cuda").float()
+        
+        top_k_patch = torch.as_tensor(actions, device=torch.device("cuda")).float()
         # print(f"Top-k patches: {top_k_patch}", end="\t")
         self.step_counter += 1
 
         # Train the model
         self.model.train()
         inputs, targets = self.train_batch
+        
         # Input Mixup, patch level
         method = np.random.choice(self.args.method.split(" "))
-        if method == "rlmix" or method == "rmix":
-            with torch.no_grad():
-                if self.args.use_random_patches:
-                    mixed_inputs, mixed_targets = mix_topleast_choose_top(
-                        inputs,
-                        targets,
-                        self.mixup_saliency,
-                        top_k_patch,
-                        self.args,
-                        self.config,
-                        self.config["size"] // self.mixup_saliency.shape[-1],
-                        self.episode_counter,
-                        self.vis_flag,
-                    )
-                else:
-                    mixed_inputs, mixed_targets = mix_topleast_choose_top(
-                        inputs,
-                        targets,
-                        self.saliency,
-                        top_k_patch,
-                        self.args,
-                        self.config,
-                        self.patch_size,
-                        self.episode_counter,
-                        self.vis_flag,
-                    )
-            # Train the model
-            mixed_inputs, mixed_targets = Variable(
-                mixed_inputs, requires_grad=True
-            ), Variable(mixed_targets)
-            outputs = self.model(mixed_inputs.float())
-
-            loss = torch.mean(
-                torch.sum(-mixed_targets * nn.LogSoftmax(-1)(outputs), dim=1)
-            )
-
-        elif method == "input":
-            inputs, targets_a, targets_b, lam = mixup_data(inputs, targets,
-                                                           self.args.dirichlet_alpha, True)
-            targets_a, targets_b = map(Variable, (targets_a, targets_b))
-            mixed_inputs = Variable(inputs, requires_grad=True)
-            outputs = self.model(mixed_inputs)
-            criterion = torch.nn.CrossEntropyLoss().cuda()
-            loss = mixup_criterion(criterion, outputs, targets_a, targets_b, lam)
-            # loss = torch.mean(
-            #     torch.sum(-targets * nn.LogSoftmax(-1)(outputs), dim=1)
-            # )
-
-        elif method == "cutmix":
-            criterion = torch.nn.CrossEntropyLoss().cuda()
-            prob = np.random.rand(1)
-            if prob < 0.5:
-                # generate mixed sample
-                lam = np.random.beta(self.args.dirichlet_alpha, self.args.dirichlet_alpha)
-                rand_index = torch.randperm(inputs.size()[0]).cuda()
-                target_a = targets
-                target_b = targets[rand_index]
-                bbx1, bby1, bbx2, bby2 = rand_bbox(inputs.size(), lam)
-                inputs[:, :, bbx1:bbx2, bby1:bby2] = inputs[rand_index, :, bbx1:bbx2, bby1:bby2]
-                # adjust lambda to exactly match pixel ratio
-                lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (inputs.size()[-1] * inputs.size()[-2]))
-                # compute output
-                mixed_inputs = Variable(inputs, requires_grad=True)
-                outputs = self.model(mixed_inputs)
-                loss = criterion(outputs, target_a) * lam + criterion(outputs, target_b) * (1. - lam)
-            else:
-                mixed_inputs = Variable(inputs, requires_grad=True)
-                outputs = self.model(mixed_inputs)
-                loss = criterion(outputs, targets)
-
-
-        elif method == "vanilla":
-            mixed_inputs = Variable(inputs, requires_grad=True)
-            outputs = self.model(mixed_inputs)
-            loss = torch.mean(
-                torch.sum(-targets * nn.LogSoftmax(-1)(outputs), dim=1)
-            )
-        else:
-            mixed_inputs = Variable(inputs, requires_grad=True)
-            criterion = torch.nn.CrossEntropyLoss().cuda()
-            outputs = self.model(mixed_inputs)
-            loss = criterion(outputs, targets)
+        mixup_strategy = self.factory.getMixupStrategy(method, 
+                                                       kwargs_dict=dict(alpha=self.args.dirichlet_alpha))
+        _, mixed_inputs, outputs, loss = mixup_strategy(inputs, targets, top_k_patch, self.args)
 
         self.vis_flag = False
         self.train_losses.update(loss.item(), inputs.size(0))
@@ -255,8 +182,6 @@ class VanillaMixupPatchDiscrete(gym.Env):
                     reward = self.grad_sim(
                         self.original_saliency.unsqueeze(0), mix_saliency.unsqueeze(0)
                     )
-        else:
-            reward = 0
 
         reward /= self.args.reward_scaling
 
@@ -477,22 +402,3 @@ class VanillaMixupPatchDiscrete(gym.Env):
         # Compute the saliency map of the first batch
         state, logits = self.compute_saliency()
         return dict(saliency=state, logits=logits)
-
-
-def rand_bbox(size, lam):
-    W = size[2]
-    H = size[3]
-    cut_rat = np.sqrt(1. - lam)
-    cut_w = np.int(W * cut_rat)
-    cut_h = np.int(H * cut_rat)
-
-    # uniform
-    cx = np.random.randint(W)
-    cy = np.random.randint(H)
-
-    bbx1 = np.clip(cx - cut_w // 2, 0, W)
-    bby1 = np.clip(cy - cut_h // 2, 0, H)
-    bbx2 = np.clip(cx + cut_w // 2, 0, W)
-    bby2 = np.clip(cy + cut_h // 2, 0, H)
-
-    return bbx1, bby1, bbx2, bby2

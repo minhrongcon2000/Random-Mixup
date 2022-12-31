@@ -1,25 +1,20 @@
-import timm
-import torchmetrics
-import dataloaders.dataloaders
-import parse_args
 import os.path
+import warnings
+
 import torch
+import wandb
+# from torchattacks import PGD, FGSM
+from accelerate import Accelerator
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.ppo import PPO
-import torchvision
-from model import resnext, preactresnet, wideresnet, resnet
 from wandb.integration.sb3 import WandbCallback
-import wandb
+
+import dataloaders.dataloaders
+import parse_args
+from model import preactresnet, resnet, resnext, wideresnet
 from policy_network import CNNExtractor
-from utils import set_global_seed, exp_schedule
-# from torchattacks import PGD, FGSM
-from accelerate import Accelerator
-import utils
-import warnings
-import time
-from mixup import *
-from torch.autograd import Variable
+from utils import set_global_seed
 
 
 # from gooey import Gooey
