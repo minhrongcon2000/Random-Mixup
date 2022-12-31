@@ -8,7 +8,7 @@ accelerate~=0.5.1
 pandas
 tensorboard~=2.5.0
 scipy
-pillow<=9.2.0
+pillow<=8.2.0
 torchattacks~=3.0.0
 torchmetrics>=0.10.0
 easydict
