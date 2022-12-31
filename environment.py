@@ -152,6 +152,14 @@ class VanillaMixupPatchDiscrete(gym.Env):
         info = {}
         mix_saliency = torch.sqrt(torch.mean(mixed_inputs.grad ** 2, dim=1))
         reward = self.calculate_reward(mix_saliency)
+        
+        if self.step_counter % self.args.print_freq == 0:
+            print(
+                f"\n\nEpisode: {self.episode_counter} | Step: {self.step_counter} | Train loss: "
+                f"{self.train_losses.avg:.5f} | Train top1 acc: {self.train_top1.compute().item() * 100:.3f}% | "
+                f"Train top5 acc: {self.train_top5.compute().item() * 100:.3f}% | Batch time: {self.batch_time.avg:.5f}",
+                end=" ",
+            )
 
         # Load the next batch
         try:
@@ -289,13 +297,6 @@ class VanillaMixupPatchDiscrete(gym.Env):
 
         self.reward_avgmeter.update(reward, 1)
 
-        if self.step_counter % self.args.print_freq == 0:
-            print(
-                f"\n\nEpisode: {self.episode_counter} | Step: {self.step_counter} | Train loss: "
-                f"{self.train_losses.avg:.5f} | Train top1 acc: {self.train_top1.compute().item() * 100:.3f}% | "
-                f"Train top5 acc: {self.train_top5.compute().item() * 100:.3f}% | Batch time: {self.batch_time.avg:.5f}",
-                end=" ",
-            )
         return reward
 
     def test_model(self):
