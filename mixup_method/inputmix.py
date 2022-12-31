@@ -4,8 +4,9 @@ from torch.autograd import Variable
 
 
 class InputMix:
-    def __init__(self, alpha, *args, **kwargs):
+    def __init__(self, alpha, model, *args, **kwargs):
         self.alpha = alpha
+        self.model = model
     
     def __call__(self, inputs, targets, *args, **kwargs):
         inputs, targets_a, targets_b, lam = mixup_data(inputs, 

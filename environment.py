@@ -152,7 +152,8 @@ class VanillaMixupPatchDiscrete(gym.Env):
         
         # Input Mixup, patch level
         method = np.random.choice(self.args.method.split(" "))
-        mixup_strategy = self.factory.getMixupStrategy(method, 
+        mixup_strategy = self.factory.getMixupStrategy(method,
+                                                       self.model, 
                                                        kwargs_dict=dict(alpha=self.args.dirichlet_alpha))
         _, mixed_inputs, outputs, loss = mixup_strategy(inputs, targets, top_k_patch, self.args)
 

@@ -14,7 +14,7 @@ class MixupFactory:
         RL_MIX: RMix
     }
     
-    def getMixupStrategy(self, strategyName, *args, **kwargs):
+    def getMixupStrategy(self, strategyName, model, *args, **kwargs):
         if strategyName not in self.REGISTER_MIXUP_STRATEGY:
             raise NotImplementedError("Strategy has not been registered!")
-        return self.REGISTER_MIXUP_STRATEGY[strategyName](*args, **kwargs)
+        return self.REGISTER_MIXUP_STRATEGY[strategyName](model=model, **kwargs)

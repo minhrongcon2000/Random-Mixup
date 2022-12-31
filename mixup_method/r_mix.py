@@ -9,6 +9,9 @@ from .utils import inverse_normalize
 
 
 class RMix:
+    def __init__(self, model, *args, **kwargs):
+        self.model = model
+    
     def __call__(self, inputs, targets, percentiles, args):
         top_k_patch = torch.as_tensor(percentiles, device="cuda").float()
         with torch.no_grad():
