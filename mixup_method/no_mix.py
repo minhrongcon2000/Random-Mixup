@@ -4,8 +4,9 @@ from torch.autograd import Variable
 
 
 class NoMix:
-    def __init__(self, model, *args, **kwargs) -> None:
+    def __init__(self, model, alpha, *args, **kwargs) -> None:
         self.model = model
+        self.alpha = alpha
     
     def __call__(self, inputs, targets, *args, **kwargs):
         mixed_inputs = Variable(inputs, requires_grad=True)

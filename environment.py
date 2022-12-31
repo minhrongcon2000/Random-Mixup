@@ -145,56 +145,13 @@ class VanillaMixupPatchDiscrete(gym.Env):
         top_k_patch = torch.as_tensor(actions, device=torch.device("cuda")).float()
         # print(f"Top-k patches: {top_k_patch}", end="\t")
         self.step_counter += 1
-
-        # Train the model
-        self.model.train()
-        inputs, targets = self.train_batch
         
-        # Input Mixup, patch level
-        method = np.random.choice(self.args.method.split(" "))
-        mixup_strategy = self.factory.getMixupStrategy(method,
-                                                       self.model, 
-                                                       kwargs_dict=dict(alpha=self.args.dirichlet_alpha))
-        _, mixed_inputs, outputs, loss = mixup_strategy(inputs, targets, top_k_patch, self.args)
-
-        self.vis_flag = False
-        self.train_losses.update(loss.item(), inputs.size(0))
-        self.train_top1.update(outputs, targets)
-        self.train_top5.update(outputs, targets)
-
-        # Compute gradients and do backprop
-        self.optimizer.zero_grad()
-        loss.backward()
-        self.optimizer.step()
-        if self.args.use_scheduler:
-            if self.args.scheduler == "OneCycleLR":
-                self.scheduler.step()
+        mixed_inputs = self.train_model(top_k_patch)
+        
 
         info = {}
         mix_saliency = torch.sqrt(torch.mean(mixed_inputs.grad ** 2, dim=1))
-
-        # Reward step
-        if self.step_counter % self.args.reward_step == 0:
-            if self.args.grad_sim:
-                with torch.no_grad():
-                    mix_saliency = F.avg_pool2d(
-                        mix_saliency, kernel_size=self.patch_size
-                    )
-                    reward = self.grad_sim(
-                        self.original_saliency.unsqueeze(0), mix_saliency.unsqueeze(0)
-                    )
-
-        reward /= self.args.reward_scaling
-
-        self.reward_avgmeter.update(reward, 1)
-
-        if self.step_counter % self.args.print_freq == 0:
-            print(
-                f"\n\nEpisode: {self.episode_counter} | Step: {self.step_counter} | Train loss: "
-                f"{self.train_losses.avg:.5f} | Train top1 acc: {self.train_top1.compute().item() * 100:.3f}% | "
-                f"Train top5 acc: {self.train_top5.compute().item() * 100:.3f}% | Batch time: {self.batch_time.avg:.5f}",
-                end=" ",
-            )
+        reward = self.calculate_reward(mix_saliency)
 
         # Load the next batch
         try:
@@ -277,6 +234,67 @@ class VanillaMixupPatchDiscrete(gym.Env):
         self.batch_time.update(time.time() - batch_start_time)
 
         return dict(saliency=state, logits=logits), reward, done, info
+    
+    def train_model(self, top_k_patch):
+        # Train the model
+        self.model.train()
+        inputs, targets = self.train_batch
+        
+        # Input Mixup, patch level
+        method = np.random.choice(self.args.method.split(" "))
+        mixup_default_config = dict(use_random_patch=self.args.use_random_patch,
+                                    vis_flag=self.vis_flag,
+                                    use_wandb=self.args.use_wandb,
+                                    dataset=self.args.dataset)
+        mixup_strategy = self.factory.getMixupStrategy(method,
+                                                       self.model, 
+                                                       kwargs_dict=dict(alpha=self.args.dirichlet_alpha,
+                                                                        config=self.config))
+        _, mixed_inputs, outputs, loss = mixup_strategy(inputs, 
+                                                        targets, 
+                                                        top_k_patch, 
+                                                        **mixup_default_config)
+
+        self.vis_flag = False
+        self.train_losses.update(loss.item(), inputs.size(0))
+        self.train_top1.update(outputs, targets)
+        self.train_top5.update(outputs, targets)
+
+        # Compute gradients and do backprop
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        if self.args.use_scheduler:
+            if self.args.scheduler == "OneCycleLR":
+                self.scheduler.step()
+                
+        return mixed_inputs
+    
+    def calculate_reward(self, mix_saliency):
+        reward = 0
+        # Reward step
+        if self.step_counter % self.args.reward_step == 0:
+            if self.args.grad_sim:
+                with torch.no_grad():
+                    mix_saliency = F.avg_pool2d(
+                        mix_saliency, kernel_size=self.patch_size
+                    )
+                    reward = self.grad_sim(
+                        self.original_saliency.unsqueeze(0), mix_saliency.unsqueeze(0)
+                    )
+
+        reward /= self.args.reward_scaling
+
+        self.reward_avgmeter.update(reward, 1)
+
+        if self.step_counter % self.args.print_freq == 0:
+            print(
+                f"\n\nEpisode: {self.episode_counter} | Step: {self.step_counter} | Train loss: "
+                f"{self.train_losses.avg:.5f} | Train top1 acc: {self.train_top1.compute().item() * 100:.3f}% | "
+                f"Train top5 acc: {self.train_top5.compute().item() * 100:.3f}% | Batch time: {self.batch_time.avg:.5f}",
+                end=" ",
+            )
+        return reward
 
     def test_model(self):
         """
