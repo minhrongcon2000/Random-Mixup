@@ -242,7 +242,7 @@ class VanillaMixupPatchDiscrete(gym.Env):
         
         # Input Mixup, patch level
         method = np.random.choice(self.args.method.split(" "))
-        mixup_default_config = dict(use_random_patch=self.args.use_random_patch,
+        mixup_default_config = dict(use_random_patches=self.args.use_random_patches,
                                     vis_flag=self.vis_flag,
                                     use_wandb=self.args.use_wandb,
                                     dataset=self.args.dataset)
