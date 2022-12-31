@@ -247,7 +247,8 @@ class VanillaMixupPatchDiscrete(gym.Env):
                                     use_wandb=self.args.use_wandb,
                                     dataset=self.args.dataset)
         mixup_strategy = self.factory.getMixupStrategy(method,
-                                                       self.model, 
+                                                       model=self.model, 
+                                                       alpha=self.args.dirichlet_alpha,
                                                        kwargs_dict=dict(alpha=self.args.dirichlet_alpha,
                                                                         config=self.config))
         _, mixed_inputs, outputs, loss = mixup_strategy(inputs, 
