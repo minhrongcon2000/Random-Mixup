@@ -224,7 +224,8 @@ class VanillaMixupPatchDiscrete(gym.Env):
                 }
                 torch.save(file, self.args.cnn_save_path)
                 self.best_test_top1 = test_top1
-                wandb.log({"best_test_top1": self.best_test_top1})
+                if self.args.use_wandb:
+                    wandb.log({"best_test_top1": self.best_test_top1})
         else:
             done = False
             # Compute saliency map of the next batch
