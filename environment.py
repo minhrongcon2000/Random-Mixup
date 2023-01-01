@@ -481,7 +481,7 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
             ),
         )
         self.observation_space = spaces.Dict(obs_space)
-        self.action_space = spaces.MultiDiscrete([args.num_actions] * args.num_patches * args.num_patches)
+        self.action_space = spaces.MultiDiscrete([args.num_action] * args.num_patches * args.num_patches)
         self.action_space_mapper = np.linspace(0, 1, args.num_patches * args.num_patches)
         self.index_perm = None
         self.current_origin = None
