@@ -13,7 +13,7 @@ from wandb.integration.sb3 import WandbCallback
 import dataloaders.dataloaders
 import parse_args
 from model import preactresnet, resnet, resnext, wideresnet
-from policy_network import CNNExtractor
+from policy_network import CNNExtractor, SaliencyGuidedRLCNNExtractor
 from utils import set_global_seed
 
 
@@ -54,7 +54,7 @@ def main():
 
     train_loader, test_loader, config = dataloaders.dataloaders.load_data(args)
     policy_kwargs = dict(
-        features_extractor_class=CNNExtractor,
+        features_extractor_class=eval(args.agent_feature_extractor),
         features_extractor_kwargs=dict(
             features_dim=256, num_class=config["num_class"]
         ),

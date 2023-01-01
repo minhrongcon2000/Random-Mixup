@@ -220,6 +220,14 @@ def parse():
         default=15,
         help="number of epochs to update the agent every episode",
     )
+    
+    agent.add_argument(
+        "--agent_feature_extractor",
+        type=str,
+        default="CNNExtractor",
+        choices=["CNNExtractor", "SaliencyGuidedRLCNNExtractor"],
+        help="Feature extractor used for RL Agent"
+    )
 
     # Environment arguments
     env = parser.add_argument_group("Environment arguments")
