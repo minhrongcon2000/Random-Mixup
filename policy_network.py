@@ -55,7 +55,8 @@ class CNNExtractor(BaseFeaturesExtractor):
 class SaliencyGuidedRLCNNExtractor(BaseFeaturesExtractor):
     def __init__(self, 
                  observation_space: gym.spaces.Dict, 
-                 features_dim: int = 256):
+                 features_dim: int = 256,
+                 **kwargs):
         super(SaliencyGuidedRLCNNExtractor, self).__init__(observation_space, features_dim)
         n_input_channels = observation_space["original_saliency"].shape[0]
         
