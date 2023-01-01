@@ -424,3 +424,204 @@ class VanillaMixupPatchDiscrete(gym.Env):
         # Compute the saliency map of the first batch
         state, logits = self.compute_saliency()
         return dict(saliency=state, logits=logits)
+    
+    
+class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
+    def __init__(self, 
+                 args, 
+                 config, 
+                 model: torch.nn.Module, 
+                 optimizer: torch.optim.Optimizer, 
+                 scheduler: Union[torch.optim.Optimizer, None], 
+                 train_dataloader: DataLoader, 
+                 test_dataloader: DataLoader, 
+                 accelerator: Accelerator):
+        super().__init__(args, 
+                         config, 
+                         model, 
+                         optimizer, 
+                         scheduler, 
+                         train_dataloader, 
+                         test_dataloader, 
+                         accelerator)
+        
+        obs_space = dict(
+            original_saliency=spaces.Box(
+                0.0,
+                1.0,
+                shape=(args.cnn_batch_size, args.num_patches, args.num_patches),
+            ),
+            perm_saliency=spaces.Box(
+                0.0,
+                1.0,
+                shape=(args.cnn_batch_size, args.num_patches, args.num_patches),
+            ),
+        )
+        self.observation_space = spaces.Dict(obs_space)
+        self.action_space = spaces.Box(0, 
+                                       1, 
+                                       (1, args.num_patches, args.num_patches))
+        self.index_perm = None
+        self.current_origin = None
+        self.current_perm = None
+    
+    def reset(self):
+        # Save visualizations
+        if (
+            self.args.vis_epoch != 0 and self.episode_counter % self.args.vis_epoch == 0
+        ) or (self.args.vis_epoch != 0 and self.episode_counter == 1):
+            self.vis_flag = True
+        elif self.args.vis_epoch == 0:
+            self.vis_flag = False
+        
+        # Loss value and metrics (accuracy)
+        self.train_losses = AverageMeter()
+        self.train_top1 = torchmetrics.Accuracy(top_k=1).cuda()
+        self.train_top5 = torchmetrics.Accuracy(top_k=5).cuda()
+        
+        # Initialize data loader
+        self.train_loader_iter = iter(self.train_loader)
+        self.train_batch = next(self.train_loader_iter)
+        
+        self.index_perm = torch.randperm(self.args.cnn_batch_size)
+        inputs, _ = self.train_batch
+        inputs_perm = inputs[self.index_perm]
+        
+        self.current_perm = compute_saliency(inputs_perm, self.model, self.patch_size)
+        self.current_origin = compute_saliency(inputs, self.model, self.patch_size)
+        
+        return dict(
+            origin_saliency=self.current_origin,
+            perm_saliency=self.current_perm
+        )
+        
+    def step(self, action: np.ndarray):
+        batch_start_time = time.time()
+        info = {}
+        lam = F.interpolate(action, scale_factor=self.patch_size)
+        _, mixup_image, _, loss = self.train_model(lam)
+        
+        # Compute gradients and do backprop
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+        if self.args.use_scheduler:
+            if self.args.scheduler == "OneCycleLR":
+                self.scheduler.step()
+                
+        reward = self.grad_sim(self.original_saliency, mixup_image)
+                
+        # Load the next batch
+        try:
+            self.train_batch = next(self.train_loader_iter)
+        # if reaches the end
+        except StopIteration:
+            # print(torch.mean(torch.mean(torch.stack(self.label_tensor), dim=1), dim=0))
+            done = True
+            self.current_origin = np.zeros(
+                (self.args.cnn_batch_size, self.patch_size, self.patch_size)
+            )
+            self.current_perm = np.zeros(
+                (self.args.cnn_batch_size, self.patch_size, self.patch_size)
+            )
+            test_losses, test_top1, test_top5 = self.test_model()
+            self.train_top1 = self.train_top1.compute().item() * 100
+            self.train_top5 = self.train_top5.compute().item() * 100
+            test_top1 = test_top1.compute().item() * 100
+            test_top5 = test_top5.compute().item() * 100
+
+            if self.args.use_wandb:
+                wandb.log(
+                    {
+                        "train_loss": self.train_losses.avg,
+                        "train_top1": self.train_top1,
+                        "test_loss": test_losses.avg,
+                        "test_top1": test_top1,
+                        "test_top5": test_top5,
+                        "reward_avg": self.reward_avgmeter.avg,
+                        "reward_sum": self.reward_avgmeter.sum,
+                        "actions": wandb.Histogram(self.action_list),
+                    }
+                )
+
+            if self.args.use_scheduler:
+                if self.args.scheduler == "MultiStepLR":
+                    self.scheduler.step()
+
+            self.epoch_time.update(time.time() - self.start_time)
+            need_hour, need_mins, need_secs = convert_secs2time(
+                self.epoch_time.avg * (self.args.cnn_epoch - self.episode_counter)
+            )
+            need_time = "| Estimated Time Left: {:02d}:{:02d}:{:02d}\n\n".format(
+                need_hour, need_mins, need_secs
+            )
+            print(
+                "\n\nEpisode: {} | Step: {} | Train loss: {:.5f} | Train top1 acc: {:.3f}% | "
+                "Train top5 acc: {:.3f}% | Test Loss: {:.5f} | Test top1 acc: {:.3f}% | Test top5 acc: {:.3f}% |"
+                " Epoch time: {:.5f}".format(
+                    self.episode_counter,
+                    self.step_counter,
+                    self.train_losses.avg,
+                    self.train_top1,
+                    self.train_top5,
+                    test_losses.avg,
+                    test_top1,
+                    test_top5,
+                    self.epoch_time.avg,
+                ),
+                end=" ",
+            )
+            print(need_time)
+            if test_top1 > self.best_test_top1:
+                file = {
+                    "model": self.model.state_dict(),
+                    "scheduler": self.scheduler.state_dict(),
+                    "test_top1": test_top1,
+                    "test_top5": test_top5,
+                    "args": self.args,
+                    "config": self.config,
+                    "epoch": self.episode_counter
+                }
+                torch.save(file, self.args.cnn_save_path)
+                self.best_test_top1 = test_top1
+                if self.args.use_wandb:
+                    wandb.log({"best_test_top1": self.best_test_top1})
+        else:
+            img, _ = self.train_batch
+            self.index_perm = torch.randperm(self.args.cnn_batch_size)
+            self.current_origin = compute_saliency(img, self.model, self.patch_size)
+            self.current_perm = compute_saliency(img[self.index_perm], self.model, self.patch_size)
+
+        # Batch time
+        self.batch_time.update(time.time() - batch_start_time)
+
+        return dict(original_saliency=self.current_origin, 
+                    perm_saliency=self.current_perm), reward, done, info
+    
+    def train_model(self, lam):
+        lam_mean = lam.mean()
+        _, targets = self.train_batch
+        mixup_image = lam * self.current_origin + (1 - lam) * self.current_perm
+        mixup_label = lam_mean * targets + (1 - lam_mean) * targets[self.index_perm]
+        outputs = self.model(mixup_image)
+        loss = torch.mean(
+            torch.sum(-mixup_label * nn.LogSoftmax(-1)(outputs), dim=1)
+        )
+        return lam, mixup_image, mixup_label, loss
+    
+
+def compute_saliency(img, model, patch_size):
+    inputs = Variable(img, requires_grad=True)
+    outputs = model(inputs)
+    saliency = torch.sqrt(torch.mean(inputs.grad ** 2, dim=1))
+    
+    with torch.no_grad():
+        downsample_saliency = F.avg_pool2d(
+            saliency, kernel_size=patch_size
+        )
+        downsample_saliency = downsample_saliency / (
+            downsample_saliency.reshape(downsample_saliency.shape[0], -1)
+                               .sum(1)
+                               .reshape(downsample_saliency.shape[0], 1, 1)
+        )
+    return downsample_saliency

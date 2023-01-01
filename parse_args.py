@@ -127,7 +127,7 @@ def parse():
     parser.add_argument(
         "--env",
         default="VanillaMixupPatchDiscrete",
-        choices=["VanillaMixupPatchDiscrete"],
+        choices=["VanillaMixupPatchDiscrete", "SaliencyGuidedRLMix"],
         help="available environment to choose",
     )
 
