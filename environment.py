@@ -92,17 +92,6 @@ class VanillaMixupPatchDiscrete(gym.Env):
         
         
     def grad_sim(self, tensorA: torch.Tensor, tensorB: torch.Tensor):
-        print((
-            F.cosine_similarity(
-                torch.flatten(tensorA, start_dim=1),
-                torch.flatten(tensorB, start_dim=1),
-                dim=1,
-                eps=1e-12,
-            )
-            .squeeze(0)
-            .cpu()
-            .numpy()
-        ))
         reward = (
             F.cosine_similarity(
                 torch.flatten(tensorA, start_dim=1),
@@ -645,6 +634,10 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
             torch.sum(-mixup_label * nn.LogSoftmax(-1)(outputs), dim=1)
         )
         return lam, mixup_image, mixup_label, loss
+    
+    def grad_sim(self, tensorA: torch.Tensor, tensorB: torch.Tensor):
+        raw_reward = super().grad_sim(tensorA, tensorB)
+        return raw_reward.mean()
     
 
     def compute_saliency(self, img, targets, model, patch_size):
