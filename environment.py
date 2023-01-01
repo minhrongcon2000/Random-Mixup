@@ -502,11 +502,11 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
         self.train_batch = next(self.train_loader_iter)
         
         self.index_perm = torch.randperm(self.args.cnn_batch_size)
-        inputs, _ = self.train_batch
+        inputs, targets = self.train_batch
         inputs_perm = inputs[self.index_perm]
         
-        self.current_perm = compute_saliency(inputs_perm, self.model, self.patch_size)
-        self.current_origin = compute_saliency(inputs, self.model, self.patch_size)
+        self.current_perm = self.compute_saliency(inputs_perm, targets, self.model, self.patch_size)
+        self.current_origin = self.compute_saliency(inputs, targets, self.model, self.patch_size)
         
         return dict(
             origin_saliency=self.current_origin,
@@ -608,8 +608,8 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
         else:
             img, _ = self.train_batch
             self.index_perm = torch.randperm(self.args.cnn_batch_size)
-            self.current_origin = compute_saliency(img, self.model, self.patch_size)
-            self.current_perm = compute_saliency(img[self.index_perm], self.model, self.patch_size)
+            self.current_origin = self.compute_saliency(img, self.model, self.patch_size)
+            self.current_perm = self.compute_saliency(img[self.index_perm], self.model, self.patch_size)
 
         # Batch time
         self.batch_time.update(time.time() - batch_start_time)
@@ -629,18 +629,26 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
         return lam, mixup_image, mixup_label, loss
     
 
-def compute_saliency(img, model, patch_size):
-    inputs = Variable(img, requires_grad=True)
-    outputs = model(inputs)
-    saliency = torch.sqrt(torch.mean(inputs.grad ** 2, dim=1))
-    
-    with torch.no_grad():
-        downsample_saliency = F.avg_pool2d(
-            saliency, kernel_size=patch_size
+    def compute_saliency(self, img, targets, model, patch_size):
+        inputs = Variable(img, requires_grad=True)
+        outputs = model(inputs)
+        loss_batch_saliency = (
+            2
+            * self.CELoss_saliency(outputs, targets)
+            / self.config["num_class"]
         )
-        downsample_saliency = downsample_saliency / (
-            downsample_saliency.reshape(downsample_saliency.shape[0], -1)
-                               .sum(1)
-                               .reshape(downsample_saliency.shape[0], 1, 1)
-        )
-    return downsample_saliency
+        loss_batch_mean_saliency = torch.mean(loss_batch_saliency, dim=0)
+        self.optimizer.zero_grad()
+        loss_batch_mean_saliency.backward()
+        saliency = torch.sqrt(torch.mean(inputs.grad ** 2, dim=1))
+        
+        with torch.no_grad():
+            downsample_saliency = F.avg_pool2d(
+                saliency, kernel_size=patch_size
+            )
+            downsample_saliency = downsample_saliency / (
+                downsample_saliency.reshape(downsample_saliency.shape[0], -1)
+                                .sum(1)
+                                .reshape(downsample_saliency.shape[0], 1, 1)
+            )
+        return downsample_saliency
