@@ -620,8 +620,8 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
     
     def train_model(self, lam):
         lam_mean = lam.mean()
-        _, targets = self.train_batch
-        mixup_image = lam * self.current_origin + (1 - lam) * self.current_perm
+        inputs, targets = self.train_batch
+        mixup_image = lam * inputs + (1 - lam) * inputs[self.index_perm]
         mixup_label = lam_mean * targets + (1 - lam_mean) * targets[self.index_perm]
         outputs = self.model(mixup_image)
         loss = torch.mean(
