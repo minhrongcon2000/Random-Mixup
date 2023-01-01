@@ -172,6 +172,7 @@ def main():
 
     else:
         env = getattr(environment, args.env)(**ENV_config)
+        print(env)
         env = Monitor(env, "log" + str(args.seed))
         print("Running Random method.")
         for i in range(args.cnn_epoch):
