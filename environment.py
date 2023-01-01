@@ -509,7 +509,7 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
         self.current_origin = self.compute_saliency(inputs, targets, self.model, self.patch_size)
         
         return dict(
-            origin_saliency=self.current_origin,
+            original_saliency=self.current_origin,
             perm_saliency=self.current_perm
         )
         
