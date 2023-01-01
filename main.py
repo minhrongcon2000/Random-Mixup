@@ -148,6 +148,7 @@ def main():
     print(f"The following configurations are set: {vars(args), config.items()}")
     if args.method == "rlmix":
         env = getattr(environment, args.env)(**ENV_config)
+        print(env)
         env = Monitor(env, "log" + str(args.seed))
         print("Running RL method.")
         logger = configure(
