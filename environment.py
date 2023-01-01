@@ -536,6 +536,7 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
                 self.scheduler.step()
                 
         reward = self.grad_sim(self.current_origin, mixup_saliency)
+        print(reward)
                 
         # Load the next batch
         try:
