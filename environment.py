@@ -613,6 +613,7 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
                 if self.args.use_wandb:
                     wandb.log({"best_test_top1": self.best_test_top1})
         else:
+            done = False
             img, targets = self.train_batch
             self.index_perm = torch.randperm(self.args.cnn_batch_size)
             self.current_origin = self.compute_saliency(img, targets, self.model, self.patch_size)
