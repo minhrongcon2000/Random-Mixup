@@ -144,7 +144,7 @@ def main():
         batch_size=args.agent_batch_size,
         verbose=1,
         device="cuda",
-        learning_rate=1e-4
+        learning_rate=1e-3
     )
 
     print(f"The following configurations are set: {vars(args), config.items()}")
