@@ -311,8 +311,8 @@ class VanillaMixupPatchDiscrete(gym.Env):
         with torch.no_grad():
             self.model.eval()
             test_losses = AverageMeter()
-            test_top1 = torchmetrics.Accuracy(top_k=1).cuda()
-            test_top5 = torchmetrics.Accuracy(top_k=5).cuda()
+            test_top1 = torchmetrics.Accuracy(top_k=1, task="multiclass").cuda()
+            test_top5 = torchmetrics.Accuracy(top_k=5, task="multiclass").cuda()
 
             for batch_idx, (inputs_test, targets_test) in enumerate(self.test_loader):
                 inputs_test, targets_test = inputs_test.cuda(), targets_test.cuda()
@@ -418,8 +418,8 @@ class VanillaMixupPatchDiscrete(gym.Env):
 
         # Loss value and metrics (accuracy)
         self.train_losses = AverageMeter()
-        self.train_top1 = torchmetrics.Accuracy(top_k=1).cuda()
-        self.train_top5 = torchmetrics.Accuracy(top_k=5).cuda()
+        self.train_top1 = torchmetrics.Accuracy(top_k=1, task="multiclass").cuda()
+        self.train_top5 = torchmetrics.Accuracy(top_k=5, task="multiclass").cuda()
 
         # Compute the saliency map of the first batch
         state, logits = self.compute_saliency()
@@ -476,8 +476,8 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
         
         # Loss value and metrics (accuracy)
         self.train_losses = AverageMeter()
-        self.train_top1 = torchmetrics.Accuracy(top_k=1).cuda()
-        self.train_top5 = torchmetrics.Accuracy(top_k=5).cuda()
+        self.train_top1 = torchmetrics.Accuracy(top_k=1, task="multiclass").cuda()
+        self.train_top5 = torchmetrics.Accuracy(top_k=5, task="multiclass").cuda()
         
         # Initialize data loader
         self.train_loader_iter = iter(self.train_loader)
