@@ -651,4 +651,4 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
                                 .sum(1)
                                 .reshape(downsample_saliency.shape[0], 1, 1)
             )
-        return downsample_saliency.numpy()
+        return downsample_saliency.cpu().numpy()
