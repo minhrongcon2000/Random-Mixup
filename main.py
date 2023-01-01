@@ -8,6 +8,7 @@ from accelerate import Accelerator
 from stable_baselines3.common.logger import configure
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.ppo import PPO
+from stable_baselines3.common.env_checker import check_env
 from wandb.integration.sb3 import WandbCallback
 
 import dataloaders.dataloaders
@@ -148,7 +149,7 @@ def main():
     print(f"The following configurations are set: {vars(args), config.items()}")
     if args.method == "rlmix":
         env = getattr(environment, args.env)(**ENV_config)
-        print(env)
+        check_env(env)
         env = Monitor(env, "log" + str(args.seed))
         print("Running RL method.")
         logger = configure(
