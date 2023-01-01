@@ -481,9 +481,8 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
             ),
         )
         self.observation_space = spaces.Dict(obs_space)
-        self.action_space = spaces.Box(0, 
-                                       1, 
-                                       (args.num_patches * args.num_patches,))
+        self.action_space = spaces.MultiDiscrete([args.num_actions] * args.num_patches * args.num_patches)
+        self.action_space_mapper = np.linspace(0, 1, args.num_patches * args.num_patches)
         self.index_perm = None
         self.current_origin = None
         self.current_perm = None
@@ -525,11 +524,17 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
         )
         
     def step(self, action: np.ndarray):
+        actions = []
+        for act in action:
+            self.action_list.append(act)
+            self.action_counter[act] += 1
+            actions.append(self.action_space_mapper[act])
+        
         batch_start_time = time.time()
         info = {}
         _, targets = self.train_batch
-        action = action.reshape(1, self.args.num_patches, self.args.num_patches)
-        action = torch.as_tensor(action, dtype=torch.float32, device="cuda")
+        actions = actions.reshape(1, self.args.num_patches, self.args.num_patches)
+        actions = torch.as_tensor(actions, dtype=torch.float32, device="cuda")
         lam = F.interpolate(action.unsqueeze(0), scale_factor=self.patch_size).squeeze(0)
         _, mixup_image, _, loss = self.train_model(lam)
         mixup_saliency = self.compute_saliency(mixup_image, targets, self.model, self.patch_size)
