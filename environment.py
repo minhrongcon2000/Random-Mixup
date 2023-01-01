@@ -516,11 +516,12 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
     def step(self, action: np.ndarray):
         batch_start_time = time.time()
         info = {}
+        _, targets = self.train_batch
         action = action.reshape(1, self.args.num_patches, self.args.num_patches)
         action = torch.as_tensor(action, dtype=torch.float32, device="cuda")
         lam = F.interpolate(action.unsqueeze(0), scale_factor=self.patch_size).squeeze(0)
-        _, mixup_image, mixup_labels, loss = self.train_model(lam)
-        mixup_saliency = self.compute_saliency(mixup_image, mixup_labels, self.model, self.patch_size)
+        _, mixup_image, _, loss = self.train_model(lam)
+        mixup_saliency = self.compute_saliency(mixup_image, targets, self.model, self.patch_size)
         
         # Compute gradients and do backprop
         self.optimizer.zero_grad()
