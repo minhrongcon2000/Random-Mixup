@@ -509,8 +509,8 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
         self.current_origin = self.compute_saliency(inputs, targets, self.model, self.patch_size)
         
         return dict(
-            original_saliency=self.current_origin,
-            perm_saliency=self.current_perm
+            original_saliency=self.current_origin.cpu().numpy(),
+            perm_saliency=self.current_perm.cpu().numpy()
         )
         
     def step(self, action: np.ndarray):
@@ -614,8 +614,8 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
         # Batch time
         self.batch_time.update(time.time() - batch_start_time)
 
-        return dict(original_saliency=self.current_origin, 
-                    perm_saliency=self.current_perm), reward, done, info
+        return dict(original_saliency=self.current_origin.cpu().numpy(), 
+                    perm_saliency=self.current_perm.cpu().numpy()), reward, done, info
     
     def train_model(self, lam):
         lam_mean = lam.mean()
@@ -651,4 +651,4 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
                                 .sum(1)
                                 .reshape(downsample_saliency.shape[0], 1, 1)
             )
-        return downsample_saliency.cpu().numpy()
+        return downsample_saliency
