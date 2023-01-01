@@ -534,7 +534,7 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
         info = {}
         _, targets = self.train_batch
         actions = torch.as_tensor(actions, dtype=torch.float32, device="cuda").view(1, self.args.num_patches, self.args.num_patches)
-        lam = F.interpolate(action.unsqueeze(0), scale_factor=self.patch_size).squeeze(0)
+        lam = F.interpolate(actions.unsqueeze(0), scale_factor=self.patch_size).squeeze(0)
         _, mixup_image, _, loss = self.train_model(lam)
         mixup_saliency = self.compute_saliency(mixup_image, targets, self.model, self.patch_size)
         
