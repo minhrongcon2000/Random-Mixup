@@ -460,7 +460,7 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
         self.observation_space = spaces.Dict(obs_space)
         self.action_space = spaces.Box(0, 
                                        1, 
-                                       (1, args.num_patches, args.num_patches))
+                                       (args.num_patches * args.num_patches,))
         self.index_perm = None
         self.current_origin = None
         self.current_perm = None
@@ -498,6 +498,7 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
     def step(self, action: np.ndarray):
         batch_start_time = time.time()
         info = {}
+        action = action.reshape(1, self.args.num_patches, self.args.num_patches)
         lam = F.interpolate(action, scale_factor=self.patch_size)
         _, mixup_image, _, loss = self.train_model(lam)
         
