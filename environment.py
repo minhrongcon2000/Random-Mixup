@@ -92,6 +92,17 @@ class VanillaMixupPatchDiscrete(gym.Env):
         
         
     def grad_sim(self, tensorA: torch.Tensor, tensorB: torch.Tensor):
+        print((
+            F.cosine_similarity(
+                torch.flatten(tensorA, start_dim=1),
+                torch.flatten(tensorB, start_dim=1),
+                dim=1,
+                eps=1e-12,
+            )
+            .squeeze(0)
+            .cpu()
+            .numpy()
+        ))
         reward = (
             F.cosine_similarity(
                 torch.flatten(tensorA, start_dim=1),
