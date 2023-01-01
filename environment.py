@@ -518,7 +518,7 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
         info = {}
         action = action.reshape(1, self.args.num_patches, self.args.num_patches)
         action = torch.as_tensor(action, dtype=torch.float32, device="cuda")
-        lam = F.interpolate(action, scale_factor=self.patch_size)
+        lam = F.interpolate(action.unsqueeze(0), scale_factor=self.patch_size).squeeze(0)
         _, mixup_image, _, loss = self.train_model(lam)
         
         # Compute gradients and do backprop
@@ -621,7 +621,6 @@ class SaliencyGuidedRLMix(VanillaMixupPatchDiscrete):
     def train_model(self, lam):
         lam_mean = lam.mean()
         _, targets = self.train_batch
-        print(lam.shape, self.current_origin.shape)
         mixup_image = lam * self.current_origin + (1 - lam) * self.current_perm
         mixup_label = lam_mean * targets + (1 - lam_mean) * targets[self.index_perm]
         outputs = self.model(mixup_image)
