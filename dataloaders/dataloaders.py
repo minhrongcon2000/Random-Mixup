@@ -23,8 +23,8 @@ def load_data(args):
         STRIDE = 1
         train_transform = transforms.Compose(
             [
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomCrop(32, padding=2),
+                # transforms.RandomHorizontalFlip(),
+                # transforms.RandomCrop(32, padding=2),
                 transforms.ToTensor(),
                 transforms.Normalize(mean, std),
             ]
